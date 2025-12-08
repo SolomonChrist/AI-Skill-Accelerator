@@ -1,0 +1,5 @@
+{
+  "name": "AI Skill Accelerator",
+  "description": "A dynamic AI-powered learning platform that generates structured university-style curriculums from any skill using Gemini and YouTube.",
+  "requestFramePermissions": []
+}
