@@ -81,6 +81,40 @@ const LoadingView = () => {
   );
 };
 
+// Specific Loader for Quizzes to show "what's happening"
+const QuizLoadingView = () => {
+  const [msgIndex, setMsgIndex] = useState(0);
+  const messages = [
+    "Analyzing module content...",
+    "Generating challenge questions...",
+    "Verifying answer keys...",
+    "Finalizing quiz..."
+  ];
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setMsgIndex(prev => (prev < messages.length - 1 ? prev + 1 : 0));
+    }, 1200);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="p-12 flex flex-col items-center justify-center space-y-6 animate-fade-in">
+      <div className="relative w-16 h-16">
+        <div className="absolute inset-0 border-4 border-purple-100 rounded-full"></div>
+        <div className="absolute inset-0 border-4 border-purple-600 rounded-full border-t-transparent animate-spin"></div>
+        <div className="absolute inset-0 flex items-center justify-center">
+           <Award className="text-purple-600 w-6 h-6 animate-pulse" />
+        </div>
+      </div>
+      <div className="flex flex-col items-center">
+        <p className="text-lg font-bold text-slate-800">Preparing Quiz</p>
+        <p className="text-slate-500 text-sm mt-1 animate-pulse">{messages[msgIndex]}</p>
+      </div>
+    </div>
+  );
+};
+
 // --- Settings Modal ---
 
 interface SettingsModalProps {
@@ -180,13 +214,7 @@ const ModuleCard: React.FC<ModuleCardProps> = ({
   const [isOpen, setIsOpen] = useState(index === 0);
 
   // Helper to construct smart links
-  const getSafeVideoUrl = (video: VideoResource) => {
-    // Check if ID exists and is a valid length (11 chars) to avoid empty or broken IDs
-    if (video.videoId && video.videoId.length === 11) {
-      return `https://www.youtube.com/watch?v=${video.videoId}`;
-    }
-    
-    // Fallback to Search Query logic
+  const getSearchUrl = (video: VideoResource) => {
     // We construct a high-precision search query using Title + Channel
     const query = `${video.title} ${video.channel}`;
     return `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
@@ -241,7 +269,7 @@ const ModuleCard: React.FC<ModuleCardProps> = ({
               Curated Video Content
             </h4>
             {module.videos.map((video, i) => {
-              const url = getSafeVideoUrl(video);
+              const url = getSearchUrl(video);
               return (
                 <div key={i} className="bg-white p-3 rounded-lg border border-slate-200 hover:border-blue-300 transition-colors group">
                   <div className="flex justify-between items-start">
@@ -675,10 +703,7 @@ export default function App() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden">
             {quizLoading ? (
-              <div className="p-12 flex flex-col items-center justify-center space-y-4">
-                <div className="loader w-8 h-8 border-4 border-blue-600 rounded-full"></div>
-                <p className="text-slate-500 font-medium">Generating Questions...</p>
-              </div>
+              <QuizLoadingView />
             ) : activeQuiz ? (
               <div className="p-6">
                 <div className="flex justify-between items-center mb-6">

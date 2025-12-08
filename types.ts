@@ -3,9 +3,7 @@ export interface VideoResource {
   channel: string;
   description: string;
   duration: string;
-  videoId?: string; // Optional: Only if Gemini is 100% sure
-  searchQuery?: string; // Fallback: Precision search query
-  videoUrl: string; // Deprecated but kept for backward compatibility if needed, though we will construct dynamic URLs
+  // We strictly use search queries now to ensure 100% link reliability
 }
 
 export interface Module {

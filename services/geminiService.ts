@@ -9,7 +9,7 @@ export const generateCurriculum = async (skill: string, apiKey: string): Promise
   
   const ai = new GoogleGenAI({ apiKey });
   
-  // Prompt updated to prioritize correct metadata over risky direct IDs
+  // Prompt updated to strictly ignore Video IDs and focus on search-friendly metadata
   const prompt = `
     Create a comprehensive, university-style learning curriculum for the skill: "${skill}".
     
@@ -22,10 +22,10 @@ export const generateCurriculum = async (skill: string, apiKey: string): Promise
     4. Curate the best educational YouTube content.
        
        VIDEO SELECTION RULES:
-       - Provide accurate Titles and Channel names. This is the most important part.
-       - If you know the exact 11-character YouTube Video ID (e.g., 'dQw4w9WgXcQ'), provide it in the 'videoId' field.
-       - IF YOU ARE NOT 100% SURE OF THE ID, LEAVE IT EMPTY. Do not guess.
-       - It is better to have no ID than a broken one. The application will generate a search link if the ID is missing.
+       - DO NOT generate video IDs or URLs.
+       - YOU MUST provide the EXACT Title and Channel Name of real, existing, high-quality videos.
+       - The user will search for these titles, so they must be accurate.
+       - Avoid generic titles like "Python Tutorial". Use specific ones like "Python for Beginners - Full Course [2024]".
     
     Finally, generate a "Career Integration" section with project ideas, interview questions, and resume bullet points.
   `;
@@ -58,9 +58,7 @@ export const generateCurriculum = async (skill: string, apiKey: string): Promise
                       channel: { type: Type.STRING },
                       description: { type: Type.STRING },
                       duration: { type: Type.STRING },
-                      videoId: { type: Type.STRING, description: "Optional: The 11-character YouTube ID if known, else empty string." },
                     },
-                    // videoId is NOT required here to allow flexibility
                     required: ['title', 'channel', 'description', 'duration']
                   }
                 }
