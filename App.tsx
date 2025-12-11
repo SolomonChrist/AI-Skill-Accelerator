@@ -1,5 +1,7 @@
+
 import React, { useState, useEffect } from 'react';
 import { generateCurriculum, generateQuiz } from './services/geminiService';
+import { fetchYouTubeVideo } from './services/youtubeService';
 import { Curriculum, Module, UserState, LEVELS, Quiz, VideoResource } from './types';
 import { 
   BookOpen, CheckCircle, 
@@ -7,7 +9,7 @@ import {
   Flame, ChevronRight, 
   ChevronDown, ExternalLink,
   Award, Github, Briefcase,
-  X, Settings, Key, LogOut
+  X, Settings, Key, LogOut, Youtube
 } from './components/Icons';
 
 // --- Helper Components ---
@@ -37,7 +39,7 @@ const LoadingView = () => {
     "Analyzing Skill Architecture...",
     "Identifying Core Concepts...",
     "Curating High-Quality Video Sources...",
-    "Designing Quiz Modules...",
+    "Fetching Live YouTube Data...",
     "Finalizing Curriculum..."
   ];
 
@@ -81,11 +83,10 @@ const LoadingView = () => {
   );
 };
 
-// Specific Loader for Quizzes to show "what's happening"
 const QuizLoadingView = () => {
   const [msgIndex, setMsgIndex] = useState(0);
   const messages = [
-    "Analyzing module content...",
+    "Analyzing content...",
     "Generating challenge questions...",
     "Verifying answer keys...",
     "Finalizing quiz..."
@@ -120,15 +121,23 @@ const QuizLoadingView = () => {
 interface SettingsModalProps {
   apiKey: string;
   setApiKey: (key: string) => void;
+  ytApiKey: string;
+  setYtApiKey: (key: string) => void;
   onClose: () => void;
 }
 
-const SettingsModal: React.FC<SettingsModalProps> = ({ apiKey, setApiKey, onClose }) => {
+const SettingsModal: React.FC<SettingsModalProps> = ({ apiKey, setApiKey, ytApiKey, setYtApiKey, onClose }) => {
   const [inputKey, setInputKey] = useState(apiKey);
+  const [inputYtKey, setInputYtKey] = useState(ytApiKey);
+  const [activeTab, setActiveTab] = useState<'gemini' | 'youtube'>('gemini');
 
   const handleSave = () => {
     setApiKey(inputKey);
     localStorage.setItem('gemini_api_key', inputKey);
+    
+    setYtApiKey(inputYtKey);
+    localStorage.setItem('youtube_api_key', inputYtKey);
+    
     onClose();
   };
 
@@ -136,58 +145,133 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ apiKey, setApiKey, onClos
     setInputKey('');
     setApiKey('');
     localStorage.removeItem('gemini_api_key');
+    
+    setInputYtKey('');
+    setYtApiKey('');
+    localStorage.removeItem('youtube_api_key');
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="text-xl font-bold flex items-center gap-2">
-            <Settings className="text-slate-400" /> Settings
+      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full flex flex-col md:flex-row overflow-hidden max-h-[90vh]">
+        
+        {/* Sidebar */}
+        <div className="w-full md:w-1/3 bg-slate-50 p-6 border-r border-slate-100">
+          <h3 className="text-xl font-bold flex items-center gap-2 mb-6 text-slate-800">
+            <Settings className="text-blue-600" /> Settings
           </h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
-            <X size={20} />
-          </button>
+          <div className="space-y-2">
+            <button 
+              onClick={() => setActiveTab('gemini')}
+              className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${activeTab === 'gemini' ? 'bg-blue-100 text-blue-700' : 'text-slate-600 hover:bg-slate-100'}`}
+            >
+              <BrainCircuit size={16} /> Gemini API
+            </button>
+            <button 
+              onClick={() => setActiveTab('youtube')}
+              className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${activeTab === 'youtube' ? 'bg-red-100 text-red-700' : 'text-slate-600 hover:bg-slate-100'}`}
+            >
+              <Youtube size={16} /> YouTube API
+            </button>
+          </div>
+          
+          <div className="mt-8 pt-6 border-t border-slate-200">
+            <button onClick={onClose} className="w-full py-2 text-slate-500 hover:text-slate-800 text-sm font-medium">Cancel</button>
+          </div>
         </div>
 
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Google Gemini API Key</label>
-            <div className="relative">
-              <Key className="absolute left-3 top-3 text-slate-400" size={16} />
-              <input 
-                type="password" 
-                value={inputKey}
-                onChange={(e) => setInputKey(e.target.value)}
-                placeholder="Enter your AI Studio API Key"
-                className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-slate-900 bg-white"
-              />
-            </div>
-            <p className="text-xs text-slate-500 mt-2">
-              Your key is stored locally in your browser. Get a free key at{' '}
-              <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                Google AI Studio
-              </a>.
-            </p>
+        {/* Content */}
+        <div className="flex-1 p-8 overflow-y-auto">
+          <div className="flex justify-between items-start mb-6">
+            <h2 className="text-lg font-bold text-slate-900">
+              {activeTab === 'gemini' ? 'Configure Gemini AI' : 'Configure YouTube Data'}
+            </h2>
+            <button onClick={onClose} className="text-slate-400 hover:text-slate-600 md:hidden">
+              <X size={20} />
+            </button>
           </div>
 
-          <div className="flex gap-3 pt-4">
-            <button 
+          {activeTab === 'gemini' ? (
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Google Gemini API Key</label>
+                <div className="relative">
+                  <Key className="absolute left-3 top-3 text-slate-400" size={16} />
+                  <input 
+                    type="password" 
+                    value={inputKey}
+                    onChange={(e) => setInputKey(e.target.value)}
+                    placeholder="Enter Gemini API Key"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-slate-900 bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 text-sm">
+                <h4 className="font-bold text-blue-800 mb-2 flex items-center gap-2">
+                  <ExternalLink size={14} /> How to get a key
+                </h4>
+                <p className="text-blue-700 mb-3">
+                  You can get a free API key from Google's AI Studio. It allows the app to generate the curriculum and quizzes.
+                </p>
+                <a 
+                  href="https://aistudio.google.com/app/apikey" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 bg-white text-blue-600 px-3 py-1.5 rounded border border-blue-200 hover:bg-blue-50 font-medium transition-colors"
+                >
+                  Get API Key <ExternalLink size={12} />
+                </a>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">YouTube Data API Key</label>
+                <div className="relative">
+                  <Youtube className="absolute left-3 top-3 text-slate-400" size={16} />
+                  <input 
+                    type="password" 
+                    value={inputYtKey}
+                    onChange={(e) => setInputYtKey(e.target.value)}
+                    placeholder="Enter YouTube API Key"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-red-500 outline-none text-slate-900 bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="bg-orange-50 p-4 rounded-lg border border-orange-100 text-sm">
+                <h4 className="font-bold text-orange-800 mb-2 flex items-center gap-2">
+                  <ExternalLink size={14} /> How to get a key
+                </h4>
+                <ol className="list-decimal list-inside space-y-2 text-orange-800 marker:font-bold">
+                  <li>Go to the <a href="https://console.cloud.google.com/" target="_blank" className="underline font-medium hover:text-orange-900">Google Cloud Console</a>.</li>
+                  <li>Create a new Project (or select an existing one).</li>
+                  <li>Search for and enable <strong>"YouTube Data API v3"</strong> in the Library.</li>
+                  <li>Go to <strong>Credentials</strong> and create a new <strong>API Key</strong>.</li>
+                </ol>
+              </div>
+            </div>
+          )}
+
+          <div className="pt-8 flex gap-3">
+             <button 
               onClick={handleSave}
-              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg transition-colors"
+              className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 rounded-lg transition-colors shadow-lg shadow-slate-200"
             >
-              Save Key
+              Save & Close
             </button>
-            {apiKey && (
+            {(apiKey || ytApiKey) && (
               <button 
                 onClick={handleClear}
-                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
-                title="Remove Key"
+                className="px-4 py-2.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
+                title="Clear all keys"
               >
                 <LogOut size={18} />
               </button>
             )}
           </div>
+
         </div>
       </div>
     </div>
@@ -200,7 +284,9 @@ interface ModuleCardProps {
   module: Module;
   index: number;
   isCompleted: boolean;
-  onStartQuiz: () => void;
+  completedVideoIds: string[];
+  onStartModuleQuiz: () => void;
+  onStartVideoQuiz: (video: VideoResource) => void;
   onOpenNotebookLM: (url: string) => void;
 }
 
@@ -208,15 +294,18 @@ const ModuleCard: React.FC<ModuleCardProps> = ({
   module, 
   index, 
   isCompleted, 
-  onStartQuiz,
+  completedVideoIds,
+  onStartModuleQuiz,
+  onStartVideoQuiz,
   onOpenNotebookLM
 }) => {
   const [isOpen, setIsOpen] = useState(index === 0);
 
-  // Helper to construct smart links
-  const getSearchUrl = (video: VideoResource) => {
-    // We construct a high-precision search query using Title + Channel
-    const query = `${video.title} ${video.channel}`;
+  const getUrl = (video: VideoResource) => {
+    if (video.videoId) {
+      return `https://www.youtube.com/watch?v=${video.videoId}`;
+    }
+    const query = video.searchQuery || video.title;
     return `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
   };
 
@@ -263,37 +352,67 @@ const ModuleCard: React.FC<ModuleCardProps> = ({
             </div>
           </div>
 
-          <div className="space-y-3 mb-6">
+          <div className="space-y-4 mb-8">
             <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <PlayCircle className="w-4 h-4 text-red-500" />
+              <Youtube className="w-4 h-4 text-red-500" />
               Curated Video Content
             </h4>
             {module.videos.map((video, i) => {
-              const url = getSearchUrl(video);
+              const url = getUrl(video);
+              const isVideoVerified = video.videoId ? completedVideoIds.includes(video.videoId) : false;
+
               return (
-                <div key={i} className="bg-white p-3 rounded-lg border border-slate-200 hover:border-blue-300 transition-colors group">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
+                <div key={i} className={`bg-white p-4 rounded-lg border ${isVideoVerified ? 'border-green-200 bg-green-50/30' : 'border-slate-200'} transition-all hover:shadow-md flex flex-col sm:flex-row gap-4`}>
+                  
+                  {/* Thumbnail / Video Preview */}
+                  {video.thumbnailUrl ? (
+                    <div className="relative w-full sm:w-40 h-24 flex-shrink-0 rounded-md overflow-hidden bg-slate-100 group cursor-pointer" onClick={() => window.open(url, '_blank')}>
+                       <img src={video.thumbnailUrl} alt="Video thumbnail" className="w-full h-full object-cover transition-transform group-hover:scale-105" />
+                       <div className="absolute inset-0 flex items-center justify-center bg-black/10 group-hover:bg-black/20 transition-colors">
+                          <PlayCircle className="text-white opacity-80 group-hover:opacity-100" size={32} />
+                       </div>
+                    </div>
+                  ) : (
+                    <div className="w-full sm:w-40 h-24 flex-shrink-0 rounded-md bg-slate-100 flex items-center justify-center text-slate-400 cursor-pointer hover:bg-slate-200" onClick={() => window.open(url, '_blank')}>
+                      <Youtube size={32} />
+                    </div>
+                  )}
+
+                  <div className="flex-1 flex flex-col justify-between">
+                    <div>
                       <a 
                         href={url} 
                         target="_blank" 
                         rel="noopener noreferrer"
-                        className="font-medium text-slate-800 hover:text-blue-600 transition-colors flex items-center gap-2"
+                        className="font-bold text-slate-800 hover:text-blue-600 transition-colors line-clamp-1"
                       >
-                        {video.title}
-                        <ExternalLink size={12} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                        {video.videoTitle || video.title}
                       </a>
-                      <p className="text-xs text-slate-500 mt-1">{video.channel} • {video.duration}</p>
-                      <p className="text-xs text-slate-400 mt-1 line-clamp-1">{video.description}</p>
+                      <p className="text-xs text-slate-500 mt-1">{video.channelTitle || video.searchQuery} {video.duration && `• ${video.duration}`}</p>
+                      <p className="text-xs text-slate-500 mt-2 line-clamp-2">{video.description}</p>
                     </div>
-                    <button 
-                      onClick={() => onOpenNotebookLM(url)}
-                      className="ml-4 flex-shrink-0 flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-purple-600 bg-slate-50 hover:bg-purple-50 px-3 py-1.5 rounded-md border border-slate-200 transition-colors"
-                      title="Copy Link & Open NotebookLM"
-                    >
-                      <BookOpen size={14} />
-                      NotebookLM
-                    </button>
+
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      <button 
+                        onClick={() => onStartVideoQuiz(video)}
+                        disabled={isVideoVerified}
+                        className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-md border transition-colors
+                          ${isVideoVerified 
+                            ? 'bg-green-100 text-green-700 border-green-200 cursor-default' 
+                            : 'bg-indigo-50 text-indigo-600 border-indigo-100 hover:bg-indigo-100'}`}
+                      >
+                        {isVideoVerified ? <CheckCircle size={14} /> : <BrainCircuit size={14} />}
+                        {isVideoVerified ? 'Verified' : 'Verify Knowledge'}
+                      </button>
+
+                      <button 
+                        onClick={() => onOpenNotebookLM(url)}
+                        className="flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-purple-600 bg-slate-50 hover:bg-purple-50 px-3 py-1.5 rounded-md border border-slate-200 transition-colors"
+                      >
+                        <BookOpen size={14} />
+                        NotebookLM
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -302,10 +421,10 @@ const ModuleCard: React.FC<ModuleCardProps> = ({
 
           <div className="flex items-center justify-between mt-6 pt-4 border-t border-slate-200">
              <div className="text-xs text-slate-400 italic">
-               *Complete quiz to earn XP and unlock mastery
+               *Master the full module
              </div>
              <button 
-                onClick={onStartQuiz}
+                onClick={onStartModuleQuiz}
                 disabled={isCompleted}
                 className={`flex items-center gap-2 px-6 py-2.5 rounded-lg font-bold shadow-sm transition-all
                   ${isCompleted 
@@ -318,7 +437,7 @@ const ModuleCard: React.FC<ModuleCardProps> = ({
                  </>
                ) : (
                  <>
-                   <BrainCircuit size={18} /> Take Quiz
+                   <BrainCircuit size={18} /> Final Module Quiz
                  </>
                )}
              </button>
@@ -333,19 +452,19 @@ const ModuleCard: React.FC<ModuleCardProps> = ({
 // --- Main App Component ---
 
 export default function App() {
-  // State: Core Data
   const [skillInput, setSkillInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [curriculum, setCurriculum] = useState<Curriculum | null>(null);
   
-  // State: Settings & Auth
+  // Auth
   const [apiKey, setApiKey] = useState<string>('');
+  const [ytApiKey, setYtApiKey] = useState<string>('');
   const [showSettings, setShowSettings] = useState(false);
 
-  // State: UI Feedback
+  // Feedback
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // State: Quiz
+  // Quiz
   const [activeQuiz, setActiveQuiz] = useState<Quiz | null>(null);
   const [quizModalOpen, setQuizModalOpen] = useState(false);
   const [quizLoading, setQuizLoading] = useState(false);
@@ -354,7 +473,7 @@ export default function App() {
   const [showExplanation, setShowExplanation] = useState(false);
   const [quizScore, setQuizScore] = useState(0);
 
-  // State: User Progress
+  // Progress
   const [userState, setUserState] = useState<UserState>(() => {
     const saved = localStorage.getItem('aiSkillAcceleratorUser');
     if (saved) return JSON.parse(saved);
@@ -363,32 +482,31 @@ export default function App() {
       level: 1,
       badges: [],
       completedModuleIds: [],
+      completedVideoIds: [],
       quizzesTaken: 0,
       streakDays: 1,
       lastLoginDate: new Date().toISOString().split('T')[0]
     };
   });
 
-  // Init API Key
+  // Init Keys
   useEffect(() => {
     const storedKey = localStorage.getItem('gemini_api_key');
-    if (storedKey) {
-      setApiKey(storedKey);
-    } else if (process.env.API_KEY) {
-      // Fallback to env var if present (e.g. for development)
-      setApiKey(process.env.API_KEY);
-    }
+    if (storedKey) setApiKey(storedKey);
+    else if (process.env.API_KEY) setApiKey(process.env.API_KEY);
+
+    const storedYtKey = localStorage.getItem('youtube_api_key');
+    if (storedYtKey) setYtApiKey(storedYtKey);
   }, []);
 
-  // Persist User State
+  // Save Progress
   useEffect(() => {
     localStorage.setItem('aiSkillAcceleratorUser', JSON.stringify(userState));
   }, [userState]);
 
-  // Handle Generation
+  // Generate Curriculum & Hydrate with YouTube
   const handleGenerate = async () => {
     if (!skillInput.trim()) return;
-    
     if (!apiKey) {
       setShowSettings(true);
       return;
@@ -397,20 +515,38 @@ export default function App() {
     setIsLoading(true);
     try {
       const data = await generateCurriculum(skillInput, apiKey);
+      
+      // Initial set (optimistic UI)
       setCurriculum(data);
+
+      // Hydrate with YouTube Data if Key exists
+      if (ytApiKey) {
+        // We do this async in the background to not block the UI completely, 
+        // or we can block if we want to ensure thumbnails load instantly.
+        // Let's block slightly to prevent "flash of content"
+        const updatedModules = await Promise.all(data.modules.map(async (mod) => {
+          const updatedVideos = await Promise.all(mod.videos.map(async (vid) => {
+            const searchQuery = vid.searchQuery || `${vid.title} ${mod.title}`;
+            const ytData = await fetchYouTubeVideo(searchQuery, ytApiKey);
+            return ytData ? { ...vid, ...ytData } : vid;
+          }));
+          return { ...mod, videos: updatedVideos };
+        }));
+        
+        setCurriculum({ ...data, modules: updatedModules });
+      }
+
     } catch (error) {
       console.error(error);
-      alert("Failed to generate curriculum. Check your API key or try a different topic.");
+      alert("Failed to generate. Please check your API keys.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Gamification Logic
   const addXP = (amount: number) => {
     setUserState(prev => {
       const newXP = prev.xp + amount;
-      // Calculate level
       let newLevel = prev.level;
       for (let i = LEVELS.length - 1; i >= 0; i--) {
         if (newXP >= LEVELS[i].xp) {
@@ -427,47 +563,51 @@ export default function App() {
         }
       }
 
-      return {
-        ...prev,
-        xp: newXP,
-        level: newLevel,
-        badges: newBadges
-      };
+      return { ...prev, xp: newXP, level: newLevel, badges: newBadges };
     });
   };
 
-  const markModuleComplete = (moduleId: string) => {
-    if (userState.completedModuleIds.includes(moduleId)) return;
-    setUserState(prev => ({
-      ...prev,
-      completedModuleIds: [...prev.completedModuleIds, moduleId]
-    }));
-    addXP(150); // Big XP for module completion
-  };
+  // --- Quizzes ---
 
-  // Quiz Handling
-  const startQuiz = async (module: Module) => {
-    if (!apiKey) {
-      setShowSettings(true);
-      return;
-    }
-    
+  const startModuleQuiz = async (module: Module) => {
+    if (!apiKey) return setShowSettings(true);
     setQuizLoading(true);
     setQuizModalOpen(true);
     try {
-      const quiz = await generateQuiz(curriculum!.skillName, module.title, module.keyConcepts, apiKey);
-      setActiveQuiz({ ...quiz, moduleId: module.id });
-      setCurrentQuestionIndex(0);
-      setQuizScore(0);
-      setSelectedOption(null);
-      setShowExplanation(false);
+      const quiz = await generateQuiz('module', module, apiKey);
+      setActiveQuiz(quiz);
+      resetQuizState();
     } catch (e) {
       console.error(e);
       setQuizModalOpen(false);
-      alert("Could not generate quiz right now.");
+      alert("Quiz generation failed.");
     } finally {
       setQuizLoading(false);
     }
+  };
+
+  const startVideoQuiz = async (video: VideoResource) => {
+    if (!apiKey) return setShowSettings(true);
+    setQuizLoading(true);
+    setQuizModalOpen(true);
+    try {
+      const quiz = await generateQuiz('video', video, apiKey);
+      setActiveQuiz(quiz);
+      resetQuizState();
+    } catch (e) {
+      console.error(e);
+      setQuizModalOpen(false);
+      alert("Quiz generation failed.");
+    } finally {
+      setQuizLoading(false);
+    }
+  };
+
+  const resetQuizState = () => {
+    setCurrentQuestionIndex(0);
+    setQuizScore(0);
+    setSelectedOption(null);
+    setShowExplanation(false);
   };
 
   const handleQuizAnswer = (optionIndex: number) => {
@@ -477,7 +617,7 @@ export default function App() {
     
     if (optionIndex === activeQuiz.questions[currentQuestionIndex].correctAnswerIndex) {
       setQuizScore(prev => prev + 1);
-      addXP(20); // XP per correct answer
+      addXP(10); // Small XP per question
     }
   };
 
@@ -489,22 +629,53 @@ export default function App() {
       setShowExplanation(false);
     } else {
       // Quiz Finished
-      setUserState(prev => ({ ...prev, quizzesTaken: prev.quizzesTaken + 1 }));
-      if (quizScore >= activeQuiz.questions.length - 1) { // Passed if mostly correct
-        markModuleComplete(activeQuiz.moduleId);
-      }
-      setTimeout(() => setQuizModalOpen(false), 2000);
+      finishQuiz();
     }
   };
 
-  // NotebookLM Integration
+  const finishQuiz = () => {
+    if (!activeQuiz) return;
+    const passed = quizScore >= Math.ceil(activeQuiz.questions.length * 0.6); // 60% to pass
+    
+    setUserState(prev => ({ ...prev, quizzesTaken: prev.quizzesTaken + 1 }));
+
+    if (passed) {
+      // Check if it's a video or module quiz
+      if (activeQuiz.title.startsWith("Video")) {
+         // Mark video as verified
+         if (activeQuiz.contextId !== 'temp') {
+             setUserState(prev => ({
+               ...prev,
+               completedVideoIds: [...prev.completedVideoIds, activeQuiz.contextId]
+             }));
+         }
+         addXP(50);
+         setToastMessage("Video Verified! +50 XP");
+      } else {
+         // Mark module completed
+         if (activeQuiz.contextId !== 'temp') {
+           setUserState(prev => ({
+             ...prev,
+             completedModuleIds: [...prev.completedModuleIds, activeQuiz.contextId]
+           }));
+         }
+         addXP(150);
+         setToastMessage("Module Mastered! +150 XP");
+      }
+    } else {
+      setToastMessage("Keep learning and try again!");
+    }
+    
+    setTimeout(() => {
+      setQuizModalOpen(false);
+      setToastMessage(null);
+    }, 2500);
+  };
+
   const openNotebookLM = (videoUrl: string) => {
     navigator.clipboard.writeText(videoUrl).then(() => {
-      setToastMessage("Link copied! Add it as a source in NotebookLM.");
-      setTimeout(() => setToastMessage(null), 4000);
-      window.open('https://notebooklm.google.com/', '_blank');
-    }).catch(err => {
-      console.error('Failed to copy: ', err);
+      setToastMessage("Link copied for NotebookLM!");
+      setTimeout(() => setToastMessage(null), 3000);
       window.open('https://notebooklm.google.com/', '_blank');
     });
   };
@@ -524,11 +695,13 @@ export default function App() {
         <SettingsModal 
           apiKey={apiKey} 
           setApiKey={setApiKey} 
+          ytApiKey={ytApiKey}
+          setYtApiKey={setYtApiKey}
           onClose={() => setShowSettings(false)} 
         />
       )}
 
-      {/* Top Bar / Gamification Header */}
+      {/* Header */}
       <header className="sticky top-0 z-40 bg-white border-b border-slate-200 shadow-sm">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => setCurriculum(null)}>
@@ -552,9 +725,10 @@ export default function App() {
 
             <button 
               onClick={() => setShowSettings(true)}
-              className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors"
+              className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors relative"
             >
               <Settings size={20} />
+              {(!apiKey || !ytApiKey) && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-white"></span>}
             </button>
           </div>
         </div>
@@ -562,24 +736,24 @@ export default function App() {
 
       <main className="max-w-4xl mx-auto px-4 pt-10">
         
-        {/* Input Section */}
+        {/* Intro */}
         {!curriculum && !isLoading && (
           <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-8 animate-fade-in">
             <div className="bg-blue-50 p-4 rounded-full">
               <BrainCircuit className="w-12 h-12 text-blue-600" />
             </div>
             <h1 className="text-4xl font-bold tracking-tight text-slate-900">
-              Master Any Skill with AI
+              Master Any Skill with AI & YouTube
             </h1>
             <p className="text-lg text-slate-600 max-w-xl">
-              Turn any topic into a university-grade curriculum. Powered by Gemini, organized by levels, and gamified for mastery.
+              Turn any topic into a structured curriculum with real, verified YouTube videos and AI-generated quizzes.
             </p>
             
             <div className="w-full max-w-lg relative">
               <input 
                 type="text" 
-                className="w-full pl-6 pr-32 py-4 rounded-xl border border-slate-300 shadow-sm text-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none bg-white text-slate-900 placeholder:text-slate-400"
-                placeholder="What do you want to learn? (e.g., Python, Pottery)"
+                className="w-full pl-6 pr-32 py-4 rounded-xl border border-slate-300 shadow-sm text-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-slate-900"
+                placeholder="What do you want to learn? (e.g., Python, Piano)"
                 value={skillInput}
                 onChange={(e) => setSkillInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleGenerate()}
@@ -592,25 +766,17 @@ export default function App() {
               </button>
             </div>
             
-            {!apiKey && (
-              <div className="text-amber-600 text-sm bg-amber-50 px-4 py-2 rounded-lg border border-amber-200">
-                ⚠️ API Key not configured. Click the gear icon to set your Gemini API key.
-              </div>
+            {(!apiKey || !ytApiKey) && (
+               <div className="flex gap-2">
+                 {!apiKey && <span className="text-xs text-red-500 bg-red-50 px-2 py-1 rounded">Missing Gemini Key</span>}
+                 {!ytApiKey && <span className="text-xs text-orange-500 bg-orange-50 px-2 py-1 rounded">Missing YouTube Key</span>}
+               </div>
             )}
-
-            <div className="flex gap-4 text-sm text-slate-400">
-              <span>Try:</span>
-              <button onClick={() => setSkillInput("Machine Learning")} className="hover:text-blue-500 underline">Machine Learning</button>
-              <button onClick={() => setSkillInput("Digital Marketing")} className="hover:text-blue-500 underline">Digital Marketing</button>
-              <button onClick={() => setSkillInput("Guitar Basics")} className="hover:text-blue-500 underline">Guitar Basics</button>
-            </div>
           </div>
         )}
 
-        {/* Loading State */}
         {isLoading && <LoadingView />}
 
-        {/* Curriculum View */}
         {curriculum && !isLoading && (
           <div className="space-y-12 animate-slide-up">
             
@@ -619,77 +785,46 @@ export default function App() {
                 <h1 className="text-3xl font-bold text-slate-900">{curriculum.skillName}</h1>
                 <p className="text-slate-500 mt-1">Structured Learning Path</p>
               </div>
-              <button 
-                onClick={() => setCurriculum(null)} 
-                className="text-sm text-slate-500 hover:text-slate-800 underline"
-              >
-                Generate New Path
-              </button>
+              <button onClick={() => setCurriculum(null)} className="text-sm text-slate-500 hover:text-slate-800 underline">Generate New</button>
             </div>
 
             <div className="space-y-6">
-              {curriculum.modules.map((module, index) => {
-                const isCompleted = userState.completedModuleIds.includes(module.id);
-                // Simple locking logic: can only access next module if previous is done (or if it's the first one)
-                // Relaxed for demo: Allow viewing all, but highlight progress
-                
-                return (
-                  <ModuleCard 
-                    key={module.id} 
-                    module={module} 
-                    index={index}
-                    isCompleted={isCompleted}
-                    onStartQuiz={() => startQuiz(module)}
-                    onOpenNotebookLM={openNotebookLM}
-                  />
-                );
-              })}
+              {curriculum.modules.map((module, index) => (
+                <ModuleCard 
+                  key={module.id} 
+                  module={module} 
+                  index={index}
+                  isCompleted={userState.completedModuleIds.includes(module.id)}
+                  completedVideoIds={userState.completedVideoIds}
+                  onStartModuleQuiz={() => startModuleQuiz(module)}
+                  onStartVideoQuiz={startVideoQuiz}
+                  onOpenNotebookLM={openNotebookLM}
+                />
+              ))}
             </div>
 
-            {/* Career Section */}
+            {/* Career */}
             <div className="bg-slate-900 text-slate-50 rounded-2xl p-8 space-y-8">
               <div className="flex items-center gap-3 border-b border-slate-700 pb-4">
                 <Briefcase className="text-blue-400" />
                 <h2 className="text-2xl font-bold">Career Integration</h2>
               </div>
-              
               <div className="grid md:grid-cols-2 gap-8">
                 <div>
-                  <h3 className="text-lg font-semibold text-blue-300 mb-4 flex items-center gap-2">
-                    <Github size={18} /> Portfolio Projects
-                  </h3>
+                  <h3 className="text-lg font-semibold text-blue-300 mb-4 flex items-center gap-2"><Github size={18} /> Projects</h3>
                   <ul className="space-y-3">
                     {curriculum.career.projectIdeas.map((idea, i) => (
-                      <li key={i} className="flex gap-2 text-slate-300 text-sm">
-                        <span className="text-blue-500 font-bold">•</span> {idea}
-                      </li>
+                      <li key={i} className="flex gap-2 text-slate-300 text-sm"><span className="text-blue-500">•</span> {idea}</li>
                     ))}
                   </ul>
-                  <div className="mt-4 p-3 bg-slate-800 rounded-lg text-xs text-slate-400 font-mono">
-                    <span className="text-blue-400 font-bold">git clone</span> {curriculum.career.githubStarterDescription.slice(0,50)}...
-                  </div>
                 </div>
-
                 <div>
-                  <h3 className="text-lg font-semibold text-blue-300 mb-4">Interview Prep</h3>
-                  <ul className="space-y-3">
-                    {curriculum.career.interviewQuestions.slice(0,3).map((q, i) => (
-                      <li key={i} className="bg-slate-800 p-3 rounded-lg text-sm text-slate-200">
-                        {q}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-
-              <div>
-                <h3 className="text-lg font-semibold text-blue-300 mb-4">Resume Bullets</h3>
-                <div className="flex flex-wrap gap-2">
-                  {curriculum.career.resumeBullets.map((bullet, i) => (
-                    <span key={i} className="bg-slate-800 border border-slate-700 px-3 py-1 rounded-full text-xs text-slate-300">
-                      {bullet}
-                    </span>
-                  ))}
+                   <h3 className="text-lg font-semibold text-blue-300 mb-4">Resume</h3>
+                   <div className="flex flex-wrap gap-2">
+                     {curriculum.career.resumeBullets.map((bullet, i) => (
+                       <span key={i} className="bg-slate-800 border border-slate-700 px-3 py-1 rounded-full text-xs text-slate-300">{bullet}</span>
+                     ))}
+                   </div>
                 </div>
               </div>
             </div>
@@ -707,14 +842,16 @@ export default function App() {
             ) : activeQuiz ? (
               <div className="p-6">
                 <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-lg font-bold">Concept Check: Question {currentQuestionIndex + 1}/{activeQuiz.questions.length}</h3>
+                  <h3 className="text-lg font-bold truncate pr-4">{activeQuiz.title}</h3>
                   <button onClick={() => setQuizModalOpen(false)} className="text-slate-400 hover:text-slate-600">Close</button>
                 </div>
+                
+                <div className="w-full bg-gray-100 h-1.5 rounded-full mb-6">
+                   <div className="bg-blue-600 h-1.5 rounded-full transition-all" style={{ width: `${((currentQuestionIndex + 1) / activeQuiz.questions.length) * 100}%` }}></div>
+                </div>
 
-                <div className="mb-6">
-                  <p className="text-lg font-medium text-slate-800">
-                    {activeQuiz.questions[currentQuestionIndex].question}
-                  </p>
+                <div className="mb-6 min-h-[80px]">
+                  <p className="text-lg font-medium text-slate-800">{activeQuiz.questions[currentQuestionIndex].question}</p>
                 </div>
 
                 <div className="space-y-3 mb-6">
@@ -727,16 +864,10 @@ export default function App() {
                     } else if (idx === selectedOption) {
                       btnClass += "border-red-500 bg-red-50 text-red-700";
                     } else {
-                      btnClass += "border-slate-100 opacity-50";
+                      btnClass += "border-slate-100 opacity-40";
                     }
-
                     return (
-                      <button
-                        key={idx}
-                        onClick={() => handleQuizAnswer(idx)}
-                        disabled={selectedOption !== null}
-                        className={btnClass}
-                      >
+                      <button key={idx} onClick={() => handleQuizAnswer(idx)} disabled={selectedOption !== null} className={btnClass}>
                         {option}
                       </button>
                     );
@@ -744,20 +875,14 @@ export default function App() {
                 </div>
 
                 {showExplanation && (
-                  <div className="bg-blue-50 p-4 rounded-xl mb-4 animate-fade-in">
-                    <p className="text-sm text-blue-800">
-                      <span className="font-bold">Explanation:</span> {activeQuiz.questions[currentQuestionIndex].explanation}
-                    </p>
+                  <div className="space-y-4 animate-fade-in">
+                     <div className="bg-blue-50 p-4 rounded-xl">
+                      <p className="text-sm text-blue-800"><span className="font-bold">Explanation:</span> {activeQuiz.questions[currentQuestionIndex].explanation}</p>
+                    </div>
+                    <button onClick={nextQuestion} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-lg transition-all">
+                      {currentQuestionIndex < activeQuiz.questions.length - 1 ? 'Next Question' : 'Finish Quiz'}
+                    </button>
                   </div>
-                )}
-
-                {showExplanation && (
-                  <button 
-                    onClick={nextQuestion}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-blue-200 transition-all"
-                  >
-                    {currentQuestionIndex < activeQuiz.questions.length - 1 ? 'Next Question' : 'Finish Quiz'}
-                  </button>
                 )}
               </div>
             ) : null}

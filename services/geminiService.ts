@@ -1,7 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Curriculum, Quiz } from "../types";
 
-// Using gemini-2.5-flash for speed and cost-effectiveness (lowest price tier)
 const MODEL_NAME = "gemini-2.5-flash";
 
 export const generateCurriculum = async (skill: string, apiKey: string): Promise<Curriculum> => {
@@ -9,7 +8,6 @@ export const generateCurriculum = async (skill: string, apiKey: string): Promise
   
   const ai = new GoogleGenAI({ apiKey });
   
-  // Prompt updated to strictly ignore Video IDs and focus on search-friendly metadata
   const prompt = `
     Create a comprehensive, university-style learning curriculum for the skill: "${skill}".
     
@@ -19,13 +17,9 @@ export const generateCurriculum = async (skill: string, apiKey: string): Promise
     1. Define a clear Title.
     2. List 3 specific learning goals.
     3. List 3 key concepts.
-    4. Curate the best educational YouTube content.
-       
-       VIDEO SELECTION RULES:
-       - DO NOT generate video IDs or URLs.
-       - YOU MUST provide the EXACT Title and Channel Name of real, existing, high-quality videos.
-       - The user will search for these titles, so they must be accurate.
-       - Avoid generic titles like "Python Tutorial". Use specific ones like "Python for Beginners - Full Course [2024]".
+    4. Curate 3 video topics. 
+       For each video, provide a "searchQuery" that would find the best possible real-world YouTube video (e.g., "Python for Beginners full course Mosh").
+       Provide a fallback title and description.
     
     Finally, generate a "Career Integration" section with project ideas, interview questions, and resume bullet points.
   `;
@@ -55,11 +49,10 @@ export const generateCurriculum = async (skill: string, apiKey: string): Promise
                     type: Type.OBJECT,
                     properties: {
                       title: { type: Type.STRING },
-                      channel: { type: Type.STRING },
+                      searchQuery: { type: Type.STRING },
                       description: { type: Type.STRING },
-                      duration: { type: Type.STRING },
                     },
-                    required: ['title', 'channel', 'description', 'duration']
+                    required: ['title', 'searchQuery', 'description']
                   }
                 }
               },
@@ -85,10 +78,8 @@ export const generateCurriculum = async (skill: string, apiKey: string): Promise
   const text = response.text;
   if (!text) throw new Error("No response from Gemini");
   
-  // Parse JSON and add initial local state properties
   const data = JSON.parse(text) as Curriculum;
   
-  // Ensure IDs are unique if Gemini messed up, and set defaults
   data.modules = data.modules.map((m, i) => ({
     ...m,
     id: m.id || `mod-${i}`,
@@ -98,14 +89,27 @@ export const generateCurriculum = async (skill: string, apiKey: string): Promise
   return data;
 };
 
-export const generateQuiz = async (skill: string, moduleTitle: string, concepts: string[], apiKey: string): Promise<Quiz> => {
+export const generateQuiz = async (contextType: 'module' | 'video', contextData: any, apiKey: string): Promise<Quiz> => {
   if (!apiKey) throw new Error("API Key is missing");
 
   const ai = new GoogleGenAI({ apiKey });
-  const prompt = `
-    Generate a short 3-question quiz to test knowledge on: "${moduleTitle}" within the skill "${skill}".
-    Focus on these concepts: ${concepts.join(', ')}.
-    
+  
+  let prompt = "";
+  if (contextType === 'module') {
+    prompt = `
+      Generate a short 3-question quiz to test knowledge on the module: "${contextData.title}".
+      Key concepts to cover: ${contextData.keyConcepts.join(', ')}.
+    `;
+  } else {
+    prompt = `
+      Generate a short 3-question quiz to verify that the user understood the video titled: "${contextData.title}".
+      Video Description context: "${contextData.description}".
+      
+      The questions should ensure they actually watched the video content.
+    `;
+  }
+
+  prompt += `
     For each question, provide 4 options and the index (0-3) of the correct answer. Provide a short explanation for the correct answer.
   `;
 
@@ -142,7 +146,8 @@ export const generateQuiz = async (skill: string, moduleTitle: string, concepts:
   const data = JSON.parse(text);
   
   return {
-    moduleId: 'temp', // This will be assigned by the caller
+    contextId: contextData.id || contextData.videoId || 'temp', 
+    title: contextType === 'module' ? `Module Quiz: ${contextData.title}` : `Video Quiz: ${contextData.title}`,
     questions: data.questions
   };
 };

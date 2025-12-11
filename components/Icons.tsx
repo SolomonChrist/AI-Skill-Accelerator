@@ -17,7 +17,8 @@ import {
   X,
   Settings,
   Key,
-  LogOut
+  LogOut,
+  Youtube
 } from 'lucide-react';
 
 export { 
@@ -38,5 +39,6 @@ export {
   X,
   Settings,
   Key,
-  LogOut
+  LogOut,
+  Youtube
 };

@@ -1,9 +1,15 @@
 export interface VideoResource {
+  // Gemini generated metadata
   title: string;
-  channel: string;
+  searchQuery: string; 
   description: string;
-  duration: string;
-  // We strictly use search queries now to ensure 100% link reliability
+  
+  // Real YouTube Data (populated via API)
+  videoId?: string;
+  videoTitle?: string;
+  channelTitle?: string;
+  thumbnailUrl?: string;
+  duration?: string;
 }
 
 export interface Module {
@@ -37,7 +43,8 @@ export interface QuizQuestion {
 }
 
 export interface Quiz {
-  moduleId: string;
+  contextId: string; // ID of the module or video this quiz belongs to
+  title: string;
   questions: QuizQuestion[];
 }
 
@@ -46,6 +53,7 @@ export interface UserState {
   level: number;
   badges: string[];
   completedModuleIds: string[];
+  completedVideoIds: string[]; // Track verified videos
   quizzesTaken: number;
   streakDays: number;
   lastLoginDate: string;
